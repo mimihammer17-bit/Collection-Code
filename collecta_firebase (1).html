@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COLLECTA — Personnages 3D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script type="module">
+import { initializeApp }     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, remove }
+                              from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:            "d4e9dcebbfb13d684d2daa",
+  authDomain:        "web-code-e8001.firebaseapp.com",
+  databaseURL:       "https://web-code-e8001-default-rtdb.firebaseio.com",
+  projectId:         "web-code-e8001",
+  storageBucket:     "web-code-e8001.appspot.com",
+  messagingSenderId: "861889876383",
+  appId:             "1:861889876383:web:d4e9dcebbfb13d684d2daa"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+window.DB = {
+  async loadChar(code) {
+    try {
+      const snap = await get(ref(db, "chars/" + code));
+      return snap.exists() ? snap.val() : null;
+    } catch(e) { console.error("loadChar:", e); return null; }
+  },
+  async saveChar(char) {
+    try {
+      await set(ref(db, "chars/" + char.code), char);
+      return true;
+    } catch(e) {
+      console.error("saveChar:", e);
+      window.notify("⚠ Erreur Firebase : " + e.message);
+      return false;
+    }
+  },
+  async deleteChar(code) {
+    try { await remove(ref(db, "chars/" + code)); return true; }
+    catch(e) { return false; }
+  },
+  async loadAll() {
+    try {
+      const snap = await get(ref(db, "chars"));
+      if(!snap.exists()) return [];
+      return Object.values(snap.val());
+    } catch(e) { console.error("loadAll:", e); return []; }
+  }
+};
+
+window.DB_READY = true;
+document.dispatchEvent(new Event('db-ready'));
+console.log("✅ Firebase connecté — web-code-e8001");
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--accent:#c8ff00;--text:#f0f0f0;--muted:#666680;--border:rgba(255,255,255,0.08);--card:#13131c}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* RULES BANNER */
+.rules-banner{background:#1a1200;border-bottom:1px solid #c8ff0044;padding:10px 1.5rem;font-size:0.78rem;color:#c8ff00;display:none;align-items:center;gap:8px}
+.rules-banner.visible{display:flex}
+.rules-banner code{background:#c8ff0022;padding:2px 6px;border-radius:4px;font-family:'Space Mono',monospace}
+
+header{padding:1.2rem 1.5rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(10,10,15,0.95);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100}
+.logo{font-size:1.4rem;font-weight:800;letter-spacing:-0.04em}.logo span{color:var(--accent)}
+nav{display:flex;gap:6px}
+.nav-btn{padding:7px 16px;border-radius:100px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.2s}
+.nav-btn.active,.nav-btn:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.screen{display:none;min-height:calc(100vh - 65px)}.screen.active{display:block}
+
+.hero{padding:4rem 1.5rem 2rem;text-align:center;max-width:640px;margin:0 auto}
+.hero h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;letter-spacing:-0.05em;line-height:1.1;margin-bottom:0.8rem}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{color:var(--muted);font-size:0.95rem;margin-bottom:2rem;line-height:1.6}
+.search-box{display:flex;gap:10px;max-width:440px;margin:0 auto 0.8rem}
+.search-box input{flex:1;padding:12px 18px;background:var(--bg3);border:1px solid var(--border);border-radius:100px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.1em;outline:none;transition:border-color 0.2s}
+.search-box input::placeholder{color:var(--muted);text-transform:none;letter-spacing:normal}
+.search-box input:focus{border-color:var(--accent)}
+.btn-search{padding:12px 22px;background:var(--accent);color:#000;border:none;border-radius:100px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.btn-search:hover{background:#d4ff1a;transform:scale(1.02)}.btn-search:disabled{background:var(--bg3);color:var(--muted);cursor:default;transform:none}
+.search-msg{font-size:0.83rem;margin-bottom:1.2rem;min-height:1.4em}
+.search-msg.error{color:#f05050}.search-msg.success{color:var(--accent)}
+
+.found-card{max-width:480px;margin:0 auto 2.5rem;background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;display:none;animation:slideUp 0.4s ease}
+.found-card.visible{display:block}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card-view{height:260px;background:#05050e;position:relative;overflow:hidden}
+.card-view canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.card-view img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1}
+.view-toggle{position:absolute;top:8px;right:8px;display:flex;gap:5px;z-index:10}
+.view-btn{padding:4px 11px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:100px;color:rgba(255,255,255,0.8);font-size:0.72rem;font-family:'Syne',sans-serif;cursor:pointer;transition:all 0.2s;font-weight:600}
+.view-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.card-info{padding:1.1rem 1.3rem}
+.card-code{font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--accent);letter-spacing:0.15em;margin-bottom:0.3rem}
+.card-name{font-size:1.4rem;font-weight:700;letter-spacing:-0.03em;margin-bottom:0.4rem}
+.card-desc{font-size:0.87rem;color:var(--muted);line-height:1.5;margin-bottom:1.1rem}
+.btn-collect{width:100%;padding:11px;background:var(--accent);color:#000;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;transition:all 0.2s}
+.btn-collect:hover{background:#d4ff1a}.btn-collect:disabled{background:var(--bg3);color:var(--muted);cursor:default}
+
+.coll-section{padding:1.5rem;max-width:1000px;margin:0 auto}
+.section-title{font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;align-items:center;gap:8px}
+.count-badge{background:var(--accent);color:#000;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:100px}
+.coll-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}
+.coll-item{background:var(--card);border:1px solid var(--border);border-radius:11px;overflow:hidden;cursor:pointer;transition:all 0.2s}
+.coll-item:hover{border-color:var(--accent);transform:translateY(-3px)}
+.coll-thumb{height:130px;overflow:hidden;position:relative;background:var(--bg3)}
+.coll-thumb img{width:100%;height:100%;object-fit:cover}
+.badge-3d{position:absolute;top:5px;right:5px;background:rgba(0,0,0,0.7);border:1px solid var(--accent);color:var(--accent);font-size:0.62rem;font-family:'Space Mono',monospace;padding:2px 6px;border-radius:100px}
+.coll-label{padding:9px 11px}
+.coll-label-name{font-size:0.88rem;font-weight:600;margin-bottom:2px}
+.coll-label-code{font-family:'Space Mono',monospace;font-size:0.67rem;color:var(--muted)}
+.empty-coll{grid-column:1/-1;padding:3rem;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:11px}
+
+.creator-wrap{max-width:640px;margin:0 auto;padding:2.5rem 1.5rem}
+.creator-wrap h2{font-size:1.8rem;font-weight:800;letter-spacing:-0.04em;margin-bottom:0.4rem}
+.creator-wrap>p{color:var(--muted);font-size:0.88rem;margin-bottom:2rem}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:2.2rem;text-align:center}
+.lock-icon{width:52px;height:52px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;font-size:1.4rem}
+.login-box h3{font-size:1.2rem;font-weight:700;margin-bottom:0.4rem}
+.login-box p{color:var(--muted);font-size:0.87rem;margin-bottom:1.5rem}
+.form-group{margin-bottom:1.1rem}
+.form-group label{display:block;font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.4rem}
+.form-group input[type=text],.form-group input[type=password],.form-group textarea{width:100%;padding:11px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'Syne',sans-serif;font-size:0.92rem;outline:none;transition:border-color 0.2s}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--accent)}
+.form-group textarea{resize:vertical;min-height:72px}
+.code-input{font-family:'Space Mono',monospace!important;text-transform:uppercase;letter-spacing:0.15em}
+.file-upload{width:100%;padding:1.1rem;background:var(--bg3);border:2px dashed var(--border);border-radius:9px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.file-upload:hover{border-color:var(--accent)}
+.file-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.file-upload-text{font-size:0.78rem;color:var(--muted)}
+.file-upload-name{font-size:0.78rem;color:var(--accent);font-weight:600;margin-top:0.2rem;word-break:break-all}
+.btn-primary{width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;transition:all 0.2s;margin-top:0.4rem}
+.btn-primary:hover{background:#d4ff1a}.btn-primary:disabled{background:var(--bg3);color:var(--muted);cursor:default}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.char-list-hdr{display:flex;align-items:center;justify-content:space-between;margin:2rem 0 0.8rem}
+.char-list-title{font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;display:flex;align-items:center;gap:6px}
+.sync-dot{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite;display:inline-block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.char-item{display:flex;align-items:center;gap:10px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:9px;margin-bottom:7px}
+.char-thumb-sm{width:40px;height:40px;border-radius:7px;overflow:hidden;background:var(--bg3);flex-shrink:0}
+.char-thumb-sm img{width:100%;height:100%;object-fit:cover}
+.char-info{flex:1}
+.char-info-name{font-size:0.9rem;font-weight:600}
+.char-info-code{font-family:'Space Mono',monospace;font-size:0.67rem;color:var(--accent)}
+.char-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px 7px;border-radius:5px;transition:all 0.2s}
+.char-del:hover{background:rgba(240,80,80,0.15);color:#f05050}
+.status-bar{display:flex;align-items:center;gap:6px;font-size:0.72rem;color:var(--muted);margin-bottom:1rem}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:18px;width:100%;max-width:520px;overflow:hidden;animation:slideUp 0.3s ease}
+.modal-3d{height:300px;background:#05050e;position:relative;overflow:hidden}
+.modal-3d canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.modal-body{padding:1.3rem 1.5rem}
+.modal-code{font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--accent);margin-bottom:0.2rem}
+.modal-name{font-size:1.5rem;font-weight:800;letter-spacing:-0.04em;margin-bottom:0.4rem}
+.modal-desc{color:var(--muted);font-size:0.87rem;line-height:1.5;margin-bottom:1.1rem}
+.btn-close-modal{width:100%;padding:11px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'Syne',sans-serif;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.2s}
+.btn-close-modal:hover{background:var(--bg2)}
+.stl-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:0.68rem;color:rgba(255,255,255,0.3);font-family:'Space Mono',monospace;white-space:nowrap;z-index:5}
+.loading-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(5,5,14,0.9);z-index:10}
+.spinner{width:26px;height:26px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:0.78rem;color:var(--muted)}
+.notif{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--card);border:1px solid var(--accent);border-radius:11px;padding:12px 18px;font-size:0.88rem;font-weight:600;z-index:1001;transform:translateY(100px);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);max-width:300px}
+.notif.show{transform:translateY(0);opacity:1}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Bannière si les règles Firebase bloquent -->
+<div class="rules-banner" id="rulesBanner">
+  ⚠ Firebase refuse l'accès. Va dans Realtime Database → Règles → mets <code>"read": true, "write": true</code> → Publier
+</div>
+
+<header>
+  <div class="logo">COLLECTA<span>.</span></div>
+  <nav>
+    <button class="nav-btn active" id="navUser" onclick="showScreen('user')">Collection</button>
+    <button class="nav-btn" id="navCreator" onclick="showScreen('creator')">Créateur</button>
+  </nav>
+</header>
+
+<div id="screen-user" class="screen active">
+  <div class="hero">
+    <h1>Trouve ton<br><em>personnage</em></h1>
+    <p>Entre le code unique pour débloquer<br>et visualiser le personnage en 3D.</p>
+    <div class="search-box">
+      <input type="text" id="codeInput" placeholder="Entre le code..." maxlength="40" autocomplete="off" spellcheck="false"/>
+      <button class="btn-search" id="btnSearch" onclick="searchCode()">Débloquer</button>
+    </div>
+    <div id="searchMsg" class="search-msg"></div>
+    <div id="foundCard" class="found-card">
+      <div class="card-view">
+        <img id="foundPhoto" src="" alt=""/>
+        <canvas id="foundCanvas"></canvas>
+        <div class="view-toggle" id="viewToggle" style="display:none">
+          <button class="view-btn active" id="btnViewPhoto" onclick="switchView('photo')">Photo</button>
+          <button class="view-btn" id="btnView3d" onclick="switchView('3d')">3D</button>
+        </div>
+      </div>
+      <div class="card-info">
+        <div id="foundCode" class="card-code"></div>
+        <div id="foundName" class="card-name"></div>
+        <div id="foundDesc" class="card-desc"></div>
+        <button class="btn-collect" id="collectBtn" onclick="addToCollection()">✦ Ajouter à ma collection</button>
+      </div>
+    </div>
+  </div>
+  <div class="coll-section">
+    <div class="section-title">Ma collection <span class="count-badge" id="collCount">0</span></div>
+    <div class="coll-grid" id="collGrid">
+      <div class="empty-coll">
+        <div style="font-size:2rem;margin-bottom:10px;opacity:0.3">◎</div>
+        <div style="font-weight:600;margin-bottom:5px">Collection vide</div>
+        <div style="font-size:0.82rem">Entre un code pour débloquer ton premier personnage</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-creator" class="screen">
+  <div class="creator-wrap">
+    <h2>Espace Créateur</h2>
+    <p>Personnages stockés sur Firebase — visibles par tous via leur code.</p>
+    <div id="loginBox" class="login-box">
+      <div class="lock-icon">🔒</div>
+      <h3>Zone protégée</h3>
+      <p>Entre le mot de passe créateur.</p>
+      <div class="form-group">
+        <input type="password" id="pwInput" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Accéder</button>
+      <div id="loginErr" style="color:#f05050;font-size:0.83rem;margin-top:8px;min-height:1.2em"></div>
+    </div>
+    <div id="creatorPanel" style="display:none">
+      <div class="status-bar">
+        <div class="status-dot"></div>
+        <span>Firebase Realtime DB · web-code-e8001 · données partagées en temps réel</span>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.8rem;margin-bottom:1.5rem">
+        <div style="font-size:0.95rem;font-weight:700;margin-bottom:1.3rem"><span style="color:var(--accent)">+</span> Nouveau personnage</div>
+        <div class="form-row">
+          <div class="form-group"><label>Nom</label><input type="text" id="cName" placeholder="Ex: Shadow Titan"/></div>
+          <div class="form-group"><label>Code unique</label><input type="text" id="cCode" class="code-input" placeholder="Ex: SHAD-4891"/></div>
+        </div>
+        <div class="form-group"><label>Description</label><textarea id="cDesc" placeholder="Description..."></textarea></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Photo</label>
+            <div class="file-upload">
+              <input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(this)"/>
+              <div style="font-size:1.1rem;margin-bottom:3px">🖼️</div>
+              <div class="file-upload-text">Clique pour choisir</div>
+              <div class="file-upload-name" id="photoName"></div>
+            </div>
+            <img id="photoPreview" src="" style="display:none;width:100%;height:75px;object-fit:cover;border-radius:7px;margin-top:7px"/>
+          </div>
+          <div class="form-group">
+            <label>Modèle 3D (.stl)</label>
+            <div class="file-upload">
+              <input type="file" id="stlInput" accept=".stl" onchange="handleStl(this)"/>
+              <div style="font-size:1.1rem;margin-bottom:3px">📦</div>
+              <div class="file-upload-text">Clique pour choisir</div>
+              <div class="file-upload-name" id="stlName"></div>
+            </div>
+            <div id="stlInfo" style="font-size:0.73rem;color:var(--muted);margin-top:5px"></div>
+          </div>
+        </div>
+        <button class="btn-primary" id="btnSave" onclick="saveCharacter()">✦ Enregistrer et partager</button>
+      </div>
+      <div class="char-list-hdr">
+        <div class="char-list-title">Personnages (<span id="charCount">0</span>) <span class="sync-dot"></span></div>
+        <button onclick="refreshAll()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:100px;font-size:0.75rem;font-family:'Syne',sans-serif;cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">↻ Rafraîchir</button>
+      </div>
+      <div id="charList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-3d" id="modal3d">
+      <div class="loading-overlay" id="modal3dLoad">
+        <div class="spinner"></div>
+        <div class="loading-text">Chargement 3D...</div>
+      </div>
+      <canvas id="modalCanvas"></canvas>
+      <div class="stl-hint" id="stlHint" style="display:none">↔ Glisser · Scroll zoom</div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-code" id="modalCode"></div>
+      <div class="modal-name" id="modalName"></div>
+      <div class="modal-desc" id="modalDesc"></div>
+      <button class="btn-close-modal" onclick="closeModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+const CREATOR_PASSWORD = "Mon_mot_de_passe_est_1102";
+let sharedChars=[],userColl=[],currentFound=null,foundRenderer=null,modalRenderer=null,currentModalChar=null,photoData=null,stlData=null,stlFileName=null;
+
+function waitDB(){
+  return new Promise(r=>{
+    if(window.DB_READY){r();return;}
+    document.addEventListener('db-ready',r,{once:true});
+  });
+}
+function loadUserColl(){try{userColl=JSON.parse(localStorage.getItem('collecta_v4')||'[]');}catch(e){userColl=[];}}
+function saveUserColl(){try{localStorage.setItem('collecta_v4',JSON.stringify(userColl));}catch(e){}}
+
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('navUser').classList.remove('active');
+  document.getElementById('navCreator').classList.remove('active');
+  document.getElementById('screen-'+name).classList.add('active');
+  document.getElementById('nav'+name[0].toUpperCase()+name.slice(1)).classList.add('active');
+  if(name==='user')renderCollection();
+}
+
+async function doLogin(){
+  if(document.getElementById('pwInput').value!==CREATOR_PASSWORD){
+    document.getElementById('loginErr').textContent="Mot de passe incorrect.";
+    document.getElementById('pwInput').value='';return;
+  }
+  document.getElementById('loginBox').style.display='none';
+  document.getElementById('creatorPanel').style.display='block';
+  await refreshAll();
+}
+
+async function refreshAll(){
+  await waitDB();
+  const all=await window.DB.loadAll();
+  if(all===null){document.getElementById('rulesBanner').classList.add('visible');return;}
+  sharedChars=all;
+  renderCharList();renderCollection();
+}
+
+function handlePhoto(input){
+  const f=input.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas');
+      const MAX=800;let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){const r=MAX/Math.max(w,h);w=Math.round(w*r);h=Math.round(h*r);}
+      c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      photoData=c.toDataURL('image/jpeg',0.8);
+      document.getElementById('photoName').textContent=f.name;
+      const prev=document.getElementById('photoPreview');prev.src=photoData;prev.style.display='block';
+    };img.src=e.target.result;
+  };reader.readAsDataURL(f);
+}
+
+function handleStl(input){
+  const f=input.files[0];if(!f)return;
+  stlFileName=f.name;
+  const mb=(f.size/1048576).toFixed(2);
+  document.getElementById('stlName').textContent=f.name;
+  document.getElementById('stlInfo').textContent=mb+' Mo'+(f.size>4*1024*1024?' ⚠ Trop lourd, allège le STL':'');
+  const r=new FileReader();r.onload=e=>{stlData=e.target.result;};r.readAsArrayBuffer(f);
+}
+
+async function saveCharacter(){
+  const name=document.getElementById('cName').value.trim();
+  const code=document.getElementById('cCode').value.trim().toUpperCase().replace(/\s+/g,'');
+  const desc=document.getElementById('cDesc').value.trim();
+  if(!name||!code){notify("⚠ Nom et code requis !");return;}
+  if(!photoData){notify("⚠ Photo requise !");return;}
+  await waitDB();
+  const existing=await window.DB.loadChar(code);
+  if(existing){notify("⚠ Ce code existe déjà !");return;}
+  const btn=document.getElementById('btnSave');
+  btn.disabled=true;btn.textContent="⏳ Envoi Firebase...";
+  const char={id:Date.now(),name,code,desc,photo:photoData,stl:stlData?ab64(stlData):null,stlFileName:stlFileName||null,createdAt:new Date().toISOString()};
+  const ok=await window.DB.saveChar(char);
+  btn.disabled=false;btn.textContent="✦ Enregistrer et partager";
+  if(ok){sharedChars.push(char);notify("✦ "+name+" partagé !");resetForm();renderCharList();}
+}
+
+function ab64(buf){const u=new Uint8Array(buf);let b='',C=8192;for(let i=0;i<u.byteLength;i+=C)b+=String.fromCharCode(...u.subarray(i,Math.min(i+C,u.byteLength)));return btoa(b);}
+function b64ab(b64){const b=atob(b64),buf=new ArrayBuffer(b.length),v=new Uint8Array(buf);for(let i=0;i<b.length;i++)v[i]=b.charCodeAt(i);return buf;}
+
+function resetForm(){
+  ['cName','cCode','cDesc'].forEach(id=>document.getElementById(id).value='');
+  ['photoName','stlName','stlInfo'].forEach(id=>document.getElementById(id).textContent='');
+  document.getElementById('photoPreview').style.display='none';
+  document.getElementById('photoInput').value='';document.getElementById('stlInput').value='';
+  photoData=null;stlData=null;stlFileName=null;
+}
+
+function renderCharList(){
+  document.getElementById('charCount').textContent=sharedChars.length;
+  const list=document.getElementById('charList');
+  if(!sharedChars.length){list.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:0.83rem">Aucun personnage</div>';return;}
+  list.innerHTML=sharedChars.map(c=>`<div class="char-item"><div class="char-thumb-sm"><img src="${c.photo}" alt="${c.name}"/></div><div class="char-info"><div class="char-info-name">${c.name}</div><div class="char-info-code">${c.code}${c.stl?' · 📦 STL':''}</div></div><button class="char-del" onclick="deleteChar('${c.code}')">✕</button></div>`).join('');
+}
+
+async function deleteChar(code){
+  if(!confirm('Supprimer "'+code+'" pour tout le monde ?'))return;
+  await waitDB();await window.DB.deleteChar(code);
+  sharedChars=sharedChars.filter(c=>c.code!==code);
+  userColl=userColl.filter(c=>c!==code);saveUserColl();
+  renderCharList();renderCollection();notify("Personnage supprimé");
+}
+
+async function searchCode(){
+  const raw=document.getElementById('codeInput').value.trim().toUpperCase().replace(/\s+/g,'');
+  const msg=document.getElementById('searchMsg'),card=document.getElementById('foundCard'),btn=document.getElementById('btnSearch');
+  if(!raw){msg.textContent="Entre un code.";msg.className='search-msg error';return;}
+  btn.disabled=true;btn.textContent="⏳";
+  msg.textContent="Recherche sur Firebase...";msg.className='search-msg';
+  await waitDB();
+  const char=await window.DB.loadChar(raw);
+  btn.disabled=false;btn.textContent="Débloquer";
+  if(!char){
+    // Vérifier si c'est une erreur de règles
+    if(char===null&&window._firebaseError){document.getElementById('rulesBanner').classList.add('visible');}
+    msg.textContent="Code introuvable. Vérifie et réessaie.";msg.className='search-msg error';
+    card.classList.remove('visible');currentFound=null;return;
+  }
+  if(!sharedChars.find(c=>c.code===char.code))sharedChars.push(char);
+  currentFound=char;
+  msg.textContent="✦ Code valide — "+char.name+" débloqué !";msg.className='search-msg success';
+  document.getElementById('foundCode').textContent=char.code;
+  document.getElementById('foundName').textContent=char.name;
+  document.getElementById('foundDesc').textContent=char.desc||"Un personnage mystérieux…";
+  const photo=document.getElementById('foundPhoto');
+  photo.src=char.photo;photo.style.display='block';photo.style.zIndex='1';
+  document.getElementById('foundCanvas').style.display='none';
+  document.getElementById('viewToggle').style.display=char.stl?'flex':'none';
+  document.getElementById('btnViewPhoto').className='view-btn active';
+  document.getElementById('btnView3d').className='view-btn';
+  const already=userColl.includes(char.code);
+  const cb=document.getElementById('collectBtn');
+  cb.disabled=already;cb.textContent=already?'✓ Déjà dans ta collection':'✦ Ajouter à ma collection';
+  if(foundRenderer){foundRenderer.dispose();foundRenderer=null;}
+  card.classList.add('visible');
+}
+document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchCode();});
+
+function switchView(mode){
+  const photo=document.getElementById('foundPhoto'),canvas=document.getElementById('foundCanvas');
+  document.getElementById('btnViewPhoto').className='view-btn'+(mode==='photo'?' active':'');
+  document.getElementById('btnView3d').className='view-btn'+(mode==='3d'?' active':'');
+  if(mode==='photo'){photo.style.display='block';photo.style.zIndex='1';canvas.style.display='none';if(foundRenderer){foundRenderer.dispose();foundRenderer=null;}}
+  else{photo.style.display='none';canvas.style.display='block';canvas.style.zIndex='2';if(currentFound?.stl&&!foundRenderer)foundRenderer=initSTL('foundCanvas',currentFound.stl,'#05050e');}
+}
+
+function addToCollection(){
+  if(!currentFound||userColl.includes(currentFound.code))return;
+  userColl.push(currentFound.code);saveUserColl();
+  document.getElementById('collectBtn').disabled=true;document.getElementById('collectBtn').textContent='✓ Ajouté !';
+  notify("✦ "+currentFound.name+" ajouté !");renderCollection();
+}
+
+function renderCollection(){
+  document.getElementById('collCount').textContent=userColl.length;
+  const grid=document.getElementById('collGrid');
+  const owned=userColl.map(code=>sharedChars.find(c=>c.code===code)).filter(Boolean);
+  if(!owned.length){grid.innerHTML='<div class="empty-coll"><div style="font-size:2rem;margin-bottom:10px;opacity:0.3">◎</div><div style="font-weight:600;margin-bottom:5px">Collection vide</div><div style="font-size:0.82rem">Entre un code pour débloquer</div></div>';return;}
+  grid.innerHTML=owned.map(c=>`<div class="coll-item" onclick="openModal('${c.code}')"><div class="coll-thumb"><img src="${c.photo}" alt="${c.name}"/>${c.stl?'<div class="badge-3d">3D</div>':''}</div><div class="coll-label"><div class="coll-label-name">${c.name}</div><div class="coll-label-code">${c.code}</div></div></div>`).join('');
+}
+
+function openModal(code){
+  const char=sharedChars.find(c=>c.code===code);if(!char)return;
+  currentModalChar=char;
+  document.getElementById('modalCode').textContent=char.code;
+  document.getElementById('modalName').textContent=char.name;
+  document.getElementById('modalDesc').textContent=char.desc||'';
+  document.getElementById('modalOverlay').classList.add('open');
+  if(modalRenderer){modalRenderer.dispose();modalRenderer=null;}
+  const cont=document.getElementById('modal3d'),canvas=document.getElementById('modalCanvas');
+  if(char.stl){
+    cont.style.backgroundImage='';canvas.style.display='block';
+    document.getElementById('modal3dLoad').style.display='flex';
+    document.getElementById('stlHint').style.display='none';
+    setTimeout(()=>{document.getElementById('modal3dLoad').style.display='none';document.getElementById('stlHint').style.display='block';modalRenderer=initSTL('modalCanvas',char.stl,'#05050e');},150);
+  }else{
+    cont.style.cssText+=`;background-image:url(${char.photo});background-size:cover;background-position:center`;
+    canvas.style.display='none';document.getElementById('modal3dLoad').style.display='none';
+  }
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  if(modalRenderer){modalRenderer.dispose();modalRenderer=null;}
+  document.getElementById('modal3d').style.backgroundImage='';
+  document.getElementById('modalCanvas').style.display='block';currentModalChar=null;
+}
+document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target.id==='modalOverlay')closeModal();});
+
+function initSTL(canvasId,stlB64,bgColor){
+  const canvas=document.getElementById(canvasId);if(!canvas)return null;
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  const w=canvas.parentElement.clientWidth||480,h=canvas.parentElement.clientHeight||300;
+  renderer.setSize(w,h,false);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(bgColor||'#05050e',1);
+  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(42,w/h,0.001,1e7);
+  scene.add(new THREE.AmbientLight(0xffffff,0.35));
+  const key=new THREE.DirectionalLight(0xffffff,1.1);key.position.set(0.5,2,3);scene.add(key);
+  const rim=new THREE.DirectionalLight(0xc8ff00,0.7);rim.position.set(-2,0.5,-3);scene.add(rim);
+  const fill=new THREE.DirectionalLight(0x8844ff,0.3);fill.position.set(2,-1,-1);scene.add(fill);
+  const bot=new THREE.DirectionalLight(0x4499ff,0.2);bot.position.set(0,-3,1);scene.add(bot);
+  const buf=b64ab(stlB64),geo=parseSTL(buf);
+  geo.computeBoundingBox();geo.computeVertexNormals();
+  const box=geo.boundingBox,center=new THREE.Vector3(),size=new THREE.Vector3();
+  box.getCenter(center);box.getSize(size);const maxDim=Math.max(size.x,size.y,size.z);
+  geo.translate(-center.x,-box.min.y,-center.z);
+  const pivot=new THREE.Group(),mat=new THREE.MeshPhongMaterial({color:0xe8f4ff,specular:0x99ccff,shininess:60,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(geo,mat);mesh.position.y=-size.y*0.5;pivot.add(mesh);scene.add(pivot);
+  camera.position.set(0,size.y*0.4,maxDim*2.0);camera.lookAt(0,size.y*0.1,0);
+  let rotY=0,spinV=0.012,dragV=0,isDrag=false,prevX=0,lastDX=0,scale=1,time=0,lastTD=0;
+  canvas.style.cursor='grab';
+  canvas.addEventListener('mousedown',e=>{isDrag=true;prevX=e.clientX;dragV=0;canvas.style.cursor='grabbing';});
+  canvas.addEventListener('mousemove',e=>{if(!isDrag)return;lastDX=(e.clientX-prevX)*0.018;rotY+=lastDX;prevX=e.clientX;});
+  canvas.addEventListener('mouseup',()=>{isDrag=false;dragV=lastDX;canvas.style.cursor='grab';});
+  canvas.addEventListener('mouseleave',()=>{if(isDrag){isDrag=false;dragV=lastDX;}canvas.style.cursor='grab';});
+  canvas.addEventListener('wheel',e=>{scale*=e.deltaY>0?1.08:0.92;scale=Math.max(0.3,Math.min(4,scale));e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){isDrag=true;prevX=e.touches[0].clientX;dragV=0;}if(e.touches.length===2){isDrag=false;lastTD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1&&isDrag){lastDX=(e.touches[0].clientX-prevX)*0.018;rotY+=lastDX;prevX=e.touches[0].clientX;}if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);scale*=lastTD/d;scale=Math.max(0.3,Math.min(4,scale));lastTD=d;}},{passive:false});
+  canvas.addEventListener('touchend',()=>{isDrag=false;dragV=lastDX;},{passive:true});
+  let animId;
+  function animate(){animId=requestAnimationFrame(animate);time+=0.016;if(!isDrag){if(Math.abs(dragV)>0.0005){rotY+=dragV;dragV*=0.92;}else{dragV=0;rotY+=spinV;}}pivot.rotation.y=rotY;pivot.rotation.x=Math.sin(time*0.7)*0.03;pivot.position.y=Math.sin(time*1.1)*maxDim*0.018;pivot.scale.setScalar(scale);renderer.render(scene,camera);}
+  animate();
+  return{dispose:()=>{cancelAnimationFrame(animId);renderer.dispose();geo.dispose();mat.dispose();}};
+}
+
+function parseSTL(buf){try{const s=Array.from(new Uint8Array(buf,0,5)).map(x=>String.fromCharCode(x)).join('');const n=new DataView(buf).getUint32(80,true);return(s!=='solid'||Math.abs(buf.byteLength-(84+n*50))<100)?parseSTLBin(buf):parseSTLAsc(buf);}catch(e){return parseSTLBin(buf);}}
+function parseSTLBin(buf){const v=new DataView(buf),n=v.getUint32(80,true),pos=new Float32Array(n*9),norm=new Float32Array(n*9);let off=84;for(let i=0;i<n;i++){const nx=v.getFloat32(off,true),ny=v.getFloat32(off+4,true),nz=v.getFloat32(off+8,true);off+=12;for(let j=0;j<3;j++){const k=i*9+j*3;pos[k]=v.getFloat32(off,true);pos[k+1]=v.getFloat32(off+4,true);pos[k+2]=v.getFloat32(off+8,true);norm[k]=nx;norm[k+1]=ny;norm[k+2]=nz;off+=12;}off+=2;}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(norm,3));return g;}
+function parseSTLAsc(buf){const lines=new TextDecoder().decode(buf).split('\n'),pos=[],norm=[];let nx=0,ny=0,nz=0;for(const l of lines){const t=l.trim();if(t.startsWith('facet normal')){const m=t.match(/facet normal\s+([\S]+)\s+([\S]+)\s+([\S]+)/);if(m){nx=+m[1];ny=+m[2];nz=+m[3];}}else if(t.startsWith('vertex')){const m=t.match(/vertex\s+([\S]+)\s+([\S]+)\s+([\S]+)/);if(m){pos.push(+m[1],+m[2],+m[3]);norm.push(nx,ny,nz);}}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pos),3));g.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(norm),3));return g;}
+
+window.notify=function(msg){const el=document.getElementById('notif');el.textContent=msg;el.classList.add('show');clearTimeout(window._nt);window._nt=setTimeout(()=>el.classList.remove('show'),3500);};
+
+loadUserColl();renderCollection();
+</script>
+</body>
+</html>
